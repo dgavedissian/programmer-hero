@@ -1,3 +1,6 @@
+.DS_Store
+thumbs.db
+
 dist
 cabal-dev
 *.o
