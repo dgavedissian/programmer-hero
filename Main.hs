@@ -2,7 +2,6 @@
 import Data.Vinyl
 import Graphics.UI.GLFW (Key(Key'Escape))
 import Linear (V2(..), V3(..), M44, (!*!))
-import System.FilePath ((</>))
 import qualified Graphics.Rendering.OpenGL as GL
 import Graphics.Rendering.OpenGL (($=), GLfloat, GLint, GLsizei)
 import qualified Graphics.GLUtil as GLU
@@ -10,40 +9,13 @@ import qualified Graphics.GLUtil.Camera3D as Camera
 import qualified Graphics.VinylGL as VGL
 import qualified Data.Set as S
 
-import Geometry (buildCube)
+import Geometry (buildCube, buildBoard)
 import Window (initGL, InputState(..))
-
--- Note that the field name, "vertexCoord", matches the attribute name
--- in the vertex shader.
-pos :: SField '("vertexCoord", v GLfloat)
-pos = SField
-
-tex :: SField '("tex", GLint)
-tex = SField
-
-logo :: IO ()
-logo = do
-    Right t <- GLU.readTexture ("textures"</>"logo.png")
-    s <- GLU.simpleShaderProgram ("shaders"</>"logo.vert") ("shaders"</>"logo.frag")
-    vb <- VGL.bufferVertices $ map (pos =:) [0, V2 0.25 0, 0.25, V2 0 0.25]
-    vao <- GLU.makeVAO $ do
-        GL.currentProgram $= Just (GLU.program s)
-        VGL.enableVertices' s vb
-        VGL.bindVertices vb
-        GL.textureBinding GL.Texture2D $= Just t
-        GL.textureFilter GL.Texture2D $= 
-          ((GL.Nearest, Nothing), GL.Nearest)
-        GLU.texture2DWrap $= (GL.Mirrored, GL.ClampToEdge)
-        VGL.setUniforms s (tex =: 0)
-    GLU.withVAO vao $ do
-        GL.currentProgram $= Just (GLU.program s)
-        GLU.withTextures2D [t] (GL.drawArrays GL.TriangleFan 0 4)
 
 type Viewport = '("viewport", V2 GLsizei)
 
-type AppInfo = FieldRec [ '("modelView", M44 GLfloat)
-                        , '("proj", M44 GLfloat)
-                        , Viewport ]
+type AppInfo = FieldRec [ '("modelViewProj", M44 GLfloat),
+                          Viewport ]
 
 setup :: IO (AppInfo -> IO ())
 setup = do
@@ -54,12 +26,8 @@ setup = do
     GL.blendFunc $= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
 
     -- Build scene
-    renderAll <- (((.) sequence_) . sequence) <$> sequence [buildCube]
-
-    -- Return a render function
-    return $ \params -> do
-        logo
-        renderAll params
+    renderAll <- (((.) sequence_) . sequence) <$> sequence [buildBoard]
+    return renderAll
 
 main :: IO ()
 main = do
@@ -83,7 +51,7 @@ main = do
             let viewMatrix = Camera.camMatrix c
 
             -- Draw using render parameters
-            render (SField =: viewMatrix <+> SField =: (projMatrix !*! viewMatrix) <+>
+            render (SField =: (projMatrix !*! viewMatrix) <+>
                     SField =: (fromIntegral <$> windowSize windowState))
 
             -- Quit if escaped has been pressed
