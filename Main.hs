@@ -11,7 +11,7 @@ import qualified Graphics.GLUtil.Camera3D as Camera
 import qualified Graphics.VinylGL as VGL
 import qualified Data.Set as S
 
-import Geometry (buildBoard, buildNote)
+import Geometry
 import Window (initGL, InputState(..), KeyDownEvent)
 import Music
 
@@ -21,7 +21,8 @@ type Music = [Note]
 
 data Renderables = Renderables {
         renderBoard :: M44 GLfloat -> IO (),
-        renderNote :: M44 GLfloat -> M44 GLfloat -> IO ()
+        renderMarker :: M44 GLfloat -> M44 GLfloat -> V3 GLfloat -> IO (),
+        renderNote :: M44 GLfloat -> M44 GLfloat -> V3 GLfloat -> IO ()
     }
 
 data GameState = GameState {
@@ -36,7 +37,7 @@ data GameState = GameState {
 loadMusic :: Music
 loadMusic = [
         Note (2, F1),
-        Note (2.5, F2),
+        Note (2, F2),
         Note (3, F3),
         Note (3.5, F4),
         Note (4, F3),
@@ -101,8 +102,8 @@ main = mdo
     GL.blendFunc $= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
 
     -- Build scene and store entity render functions
-    renderables <- Renderables <$> buildBoard <*> buildNote
-
+    renderables <- Renderables <$> buildBoard <*> buildMarker <*> buildNote
+    
     -- Calculate the projection matrix
     let aspect = (fromIntegral width) / (fromIntegral height)
     let projMatrix = Camera.projectionMatrix (Camera.deg2rad 30) aspect 0.1 1000
@@ -119,6 +120,22 @@ main = mdo
         render :: GameState -> M44 GLfloat -> IO ()
         render state viewProjMatrix = do
             renderBoard (renderables state) viewProjMatrix
+                
+            let xoffset F1 = -1.5
+                xoffset F2 = -0.5
+                xoffset F3 = 0.5
+                xoffset F4 = 1.5
+                getColour F1 = V3 1 0 0
+                getColour F2 = V3 0 1 0
+                getColour F3 = V3 0 0 1
+                getColour F4 = V3 1 1 0
+
+            -- Render the markers for each colour
+            forM_ [F1, F2, F3, F4] $ \note -> do
+                let x = (xoffset note) * 4
+                    -- board half size is 40, marker half size is 2
+                    modelMatrix = translate x 0 38
+                renderMarker (renderables state) viewProjMatrix modelMatrix (getColour note)
 
             -- Drop notes which have already been played
             elapsed <- realToFrac <$> readIORef (progress state)
@@ -128,13 +145,9 @@ main = mdo
             currentMusic <- readIORef (music state)
             forM_ currentMusic $ \(Note (time, note)) -> do
                 elapsed <- realToFrac <$> readIORef (progress state)
-                let xoffset F1 = -1.5
-                    xoffset F2 = -0.5
-                    xoffset F3 = 0.5
-                    xoffset F4 = 1.5
-                    x = (xoffset note) * 4
+                let x = (xoffset note) * 4
                     modelMatrix = translate x 0 ((elapsed - (realToFrac time)) * 16 + 40)
-                renderNote (renderables state) viewProjMatrix modelMatrix
+                renderNote (renderables state) viewProjMatrix modelMatrix (getColour note)
 
         -- Main Loop
         mainLoop :: Camera.Camera GLfloat -> IO InputState -> GameState -> IO ()

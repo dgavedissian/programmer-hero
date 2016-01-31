@@ -10,7 +10,7 @@ out vec3 pointNormal;
 out vec3 diffuse;
 
 void main() {
-    gl_Position = modelViewProj * vec4(vertexPos,1);
+    gl_Position = modelViewProj * vec4(vertexPos, 1.0);
     pointNormal = vertexNormal;
     diffuse = vertexColour;
 }
