@@ -168,8 +168,13 @@ main = mdo
             -- Draw using render parameters
             render state ((projMatrix state) !*! viewMatrix)
 
+            -- Check win condition
+            remMusic <- readIORef . music $ state
+            when (null remMusic) $
+              putStrLn "You won"
+
             -- Quit if escaped has been pressed
-            unless (shouldQuit windowState) $
+            unless (null remMusic || shouldQuit windowState) $
               mainLoop c updateWindow state
         camera = Camera.tilt (-20) $ Camera.dolly (V3 0 16 64) Camera.fpsCamera
 
