@@ -22,3 +22,7 @@ getBeatColours F2 = V3 0 1 0
 getBeatColours F3 = V3 0 0 1
 getBeatColours F4 = V3 1 1 0
 
+-- Board Size
+boardWidth = 16
+boardLength = 80
+markerSize = boardWidth / 4

@@ -1,14 +1,13 @@
 {-# LANGUAGE DataKinds, FlexibleContexts, TypeOperators #-}
 module Geometry where
-import Control.Applicative
-import Control.Lens (view)
-import Data.Foldable (fold, foldMap)
-import Data.Vinyl
+import           Data.Vinyl
 import qualified Graphics.Rendering.OpenGL as GL
 import qualified Graphics.GLUtil as GLU
 import qualified Graphics.VinylGL as VGL
-import Graphics.Rendering.OpenGL (($=), GLfloat, GLint, GLsizei)
-import Linear
+import           Graphics.Rendering.OpenGL (($=), GLfloat, GLint, GLsizei)
+import           Linear
+
+import qualified Constants as C
 
 type Pos    = '("vertexPos", V3 GLfloat)
 type Normal = '("vertexNormal", V3 GLfloat)
@@ -38,7 +37,7 @@ boardVertices :: [FieldRec '[Pos, Normal, Colour]]
 boardVertices = map (\p -> pos =: p <+> normal =: z <+> col =: (V3 0.8 0.8 0.8)) positions
     where
         [_,_,z] = basis
-        positions = map (\(V2 x z) -> V3 (x * 8) 0 (z * 40)) square
+        positions = map (\(V2 x z) -> V3 (x * (C.boardWidth / 2)) 0 (z * (C.boardLength / 2))) square
 
 boardIndices :: [GLU.Word32]
 boardIndices = [0, 1, 2, 2, 1, 3]
@@ -61,7 +60,8 @@ buildBoard = do
 markerVertices :: [FieldRec '[Pos]]
 markerVertices = map (\p -> pos =: p) positions
     where
-        positions = map (\(V2 x z) -> V3 (x * 2) 0 (z * 2)) square
+        halfSize = C.markerSize / 2
+        positions = map (\(V2 x z) -> V3 (x * halfSize) 0 (z * halfSize)) square
 
 markerIndices :: [GLU.Word32]
 markerIndices = [0, 1, 2, 2, 1, 3]
@@ -100,7 +100,7 @@ noteVerties :: [FieldRec '[Pos]]
 noteVerties = map (\p -> pos =: p) $ concat [front, back, left, right, top, bottom]
 
 noteIndices :: [GLU.Word32]
-noteIndices = take 36 $ foldMap (flip map faceInds . (+)) [0,4..]
+noteIndices = take 36 $ foldMap (flip map faceInds . (+)) [0, 4..]
     where
         faceInds = [0, 1, 2, 2, 1, 3]
 

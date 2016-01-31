@@ -53,8 +53,11 @@ getLength notes = time
     where
         Note (time, _) = last notes
 
-translate :: GLfloat -> GLfloat -> GLfloat -> M44 GLfloat
-translate x y z = mkTransformationMat identity (V3 x y z)
+translateMatrix :: GLfloat -> GLfloat -> GLfloat -> M44 GLfloat
+translateMatrix x y z = mkTransformationMat identity (V3 x y z)
+
+scaleMatrix :: GLfloat -> GLfloat -> GLfloat -> M44 GLfloat
+scaleMatrix x y z = V4 (V4 x 0 0 0) (V4 0 y 0 0) (V4 0 0 z 0) (V4 0 0 0 1)
 
 -- Takes a list of notes which have not been missed already
 checkHit :: Music -> Time -> Beat -> Bool
@@ -121,8 +124,7 @@ main = mdo
             -- Render the markers for each colour
             forM_ [F1, F2, F3, F4] $ \note -> do
                 let x = xoffset note * 4
-                    -- board half size is 40, marker half size is 2
-                    modelMatrix = translate x 0 38
+                    modelMatrix = translateMatrix x 0.01 ((C.boardLength / 2) - (C.markerSize / 2))
                 renderMarker (renderables state) viewProjMatrix modelMatrix (C.getBeatColours note)
 
             -- Drop notes which have already been played
@@ -134,7 +136,8 @@ main = mdo
             forM_ currentMusic $ \(Note (time, note)) -> do
                 elapsed <- realToFrac <$> readIORef (progress state)
                 let x = xoffset note * 4
-                    modelMatrix = translate x 0 ((elapsed - realToFrac time) * 16 + 40)
+                    modelMatrix = (translateMatrix x 0.5 ((elapsed - (realToFrac time)) * 16 + 40))
+                                   !*! (scaleMatrix 1 0.5 1)
                 renderNote (renderables state) viewProjMatrix modelMatrix (C.getBeatColours note)
 
         -- Main Loop
