@@ -25,7 +25,8 @@ getBeatColours F4 = V3 1 1 0
 -- Board Size
 boardWidth = 16
 boardLength = 80
-markerSize = boardWidth / 4
+markerSize = boardWidth / 6
+markerScale = 1.5
 
 -- Units per second
 noteSpeed = 4

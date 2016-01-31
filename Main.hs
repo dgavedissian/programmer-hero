@@ -40,8 +40,12 @@ data GameState = GameState {
         progress :: IORef Time,
         music :: IORef Music,
         playback :: IORef PlaybackData,
-        connection :: Connection,
+        connection :: Maybe Connection,
         finishingTime :: Time,
+        f1Size :: IORef GLfloat,
+        f2Size :: IORef GLfloat,
+        f3Size :: IORef GLfloat,
+        f4Size :: IORef GLfloat,
         renderables :: Renderables,
         projMatrix :: M44 GLfloat
     }
@@ -71,8 +75,8 @@ fromEvent (t, FE.MIDIEvent (Cons ch _)) = do
     return $ Just $ Note (fromIntegral t / 1000, toEnum ch')
 fromEvent _ = return Nothing
 
-playNote :: Connection -> FE.T -> IO ()
-playNote connection (FE.MIDIEvent (Cons ch body))
+playNote :: Maybe Connection -> FE.T -> IO ()
+playNote (Just connection) (FE.MIDIEvent (Cons ch body))
     = play ch body connection
 playNote _ _ = return ()
 
@@ -104,6 +108,7 @@ checkHit music elapsed beat = beat == b && (t - elapsed) < C.timeToCatch
 keyDownEvent :: GameState -> KeyDownEvent
 keyDownEvent state key
     | key `elem` [Key'F1, Key'F2, Key'F3, Key'F4] = do
+        enlargeMarker key
         musicState <- readIORef $ music state
         elapsed <- readIORef $ progress state
         when (checkHit musicState elapsed (mapKey key)) $
@@ -114,15 +119,25 @@ keyDownEvent state key
         mapKey Key'F2 = F2
         mapKey Key'F3 = F3
         mapKey Key'F4 = F4
-        mapKey _ = error "This can never happen"
+        mapKey _ = undefined
+        enlargeMarker Key'F1 = writeIORef (f1Size state) C.markerScale
+        enlargeMarker Key'F2 = writeIORef (f2Size state) C.markerScale
+        enlargeMarker Key'F3 = writeIORef (f3Size state) C.markerScale
+        enlargeMarker Key'F4 = writeIORef (f4Size state) C.markerScale
+        enlargeMarker _ = undefined
 
 main :: IO ()
 main = mdo
     -- Load the music
     [midiFile] <- getArgs
-    (destination : _) <- enumerateDestinations
-    conn <- openDestination destination
-    start conn
+    ds <- enumerateDestinations
+    conn <- case ds of
+        (destination : _) -> do
+            c <- openDestination destination
+            start c
+            close c
+            return $ Just c
+        _ -> return Nothing
     (music, playback) <- loadMusic midiFile
 
     -- Create the window and store the window upate function
@@ -147,18 +162,29 @@ main = mdo
     musicRef <- newIORef music
     progressRef <- newIORef 0.0
     playbackRef <- newIORef playback
+    f1Ref <- newIORef 1.0
+    f2Ref <- newIORef 1.0
+    f3Ref <- newIORef 1.0
+    f4Ref <- newIORef 1.0
     let state = GameState progressRef
                           musicRef
                           playbackRef
                           conn
                           (getLength music)
+                          f1Ref
+                          f2Ref
+                          f3Ref
+                          f4Ref
                           renderables
                           projMatrix
 
     -- Kick off the main loop
     mainLoop camera updateWindow state
-    stop conn
-    close conn
+    case conn of
+        Just c -> do
+            stop c
+            close c
+        _ -> return ()
     where
         -- Render Function
         render :: GameState -> M44 GLfloat -> IO ()
@@ -169,11 +195,25 @@ main = mdo
                 xoffset F2 = -0.5
                 xoffset F3 = 0.5
                 xoffset F4 = 1.5
+                scaleDown x = (x - 1.0) * 0.9 + 1.0
 
             -- Render the markers for each colour
+            modifyIORef' (f1Size state) scaleDown
+            modifyIORef' (f2Size state) scaleDown
+            modifyIORef' (f3Size state) scaleDown
+            modifyIORef' (f4Size state) scaleDown
+            f1CurSize <- readIORef (f1Size state)
+            f2CurSize <- readIORef (f2Size state)
+            f3CurSize <- readIORef (f3Size state)
+            f4CurSize <- readIORef (f4Size state)
             forM_ [F1, F2, F3, F4] $ \note -> do
                 let x = xoffset note * C.noteSpeed
-                    modelMatrix = translateMatrix x 0.01 ((C.boardLength / 2) - (C.markerSize / 2))
+                    scale F1 = f1CurSize
+                    scale F2 = f2CurSize
+                    scale F3 = f3CurSize
+                    scale F4 = f4CurSize
+                    scaleSize = scale note
+                    modelMatrix = (translateMatrix x 0.01 ((C.boardLength / 2) - (C.markerSize / 2))) !*! (scaleMatrix scaleSize scaleSize scaleSize)
                 renderMarker (renderables state) viewProjMatrix modelMatrix (C.getBeatColours note)
 
             -- Drop notes which have already been played
