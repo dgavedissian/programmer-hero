@@ -23,28 +23,27 @@ normal = SField
 col :: SField Colour
 col = SField
 
+mvp :: SField '("modelViewProj", M44 GLfloat)
+mvp = SField
+
 -- The corners of a square
 square :: [V2 GLfloat]
 square = V2 <$> [-1,1] <*> [1,-1]
-
--- For rendering something, we need a ModelViewProjection matrix
-type CamInfo = '[ '("modelViewProj", M44 GLfloat) ]
 
 ------------------------
 -- Board
 ------------------------
 
 boardVertices :: [FieldRec [Pos, Normal, Colour]]
-boardVertices = map (\p -> pos =: p <+> normal =: z <+> col =: (V3 0.8 0.8
-                    0.8)) positions
+boardVertices = map (\p -> pos =: p <+> normal =: z <+> col =: (V3 0.8 0.8 0.8)) positions
     where
         [_,_,z] = basis
-        positions = map (\(V2 x z) -> V3 x 0 (z * 5)) square
+        positions = map (\(V2 x z) -> V3 (x * 8) 0 (z * 40)) square
 
 boardIndices :: [GLU.Word32]
 boardIndices = [0, 1, 2, 2, 1, 3]
 
-buildBoard :: (CamInfo <: f) => IO (FieldRec f -> IO ())
+buildBoard :: IO (M44 GLfloat -> IO ())
 buildBoard = do
     s <- GLU.simpleShaderProgram "shaders/board.vert" "shaders/board.frag"
     vb <- VGL.bufferVertices boardVertices
@@ -55,19 +54,17 @@ buildBoard = do
         VGL.enableVertices' s vb
         VGL.bindVertices vb
         GL.bindBuffer GL.ElementArrayBuffer $= Just eb
-    return $ \appInfo -> GLU.withVAO vao $ do
+    return $ \viewProjMatrix -> GLU.withVAO vao $ do
         GL.currentProgram $= Just (GLU.program s)
-        VGL.setUniforms s (rcast appInfo :: FieldRec CamInfo)
-        GLU.drawIndexedTris 12
+        VGL.setUniforms s (mvp =: viewProjMatrix)
+        GLU.drawIndexedTris 2
     where
         light :: SField '("lightDir", V3 GLfloat)
         light = SField
 
 ------------------------
--- Cube
+-- Notes
 ------------------------
-
--- Transform the square into faces
 front,back,left,right,top,bottom :: [V3 GLfloat]
 front  = map (\(V2 x y) -> V3 x y 1) square
 back   = map (\(V2 x y) -> V3 (-x) y (-1)) square
@@ -76,7 +73,6 @@ right  = map (\(V2 z y) -> V3 1 y (-z)) square
 top    = map (\(V2 x z) -> V3 x 1 (-z)) square
 bottom = map (\(V2 x z) -> V3 x (-1) z) square
 
--- Cube face vertices paired with normal vectors.
 noteVerties :: [FieldRec [Pos,Normal]]
 noteVerties = fold [
         map (setNorm z)    front,
@@ -90,16 +86,12 @@ noteVerties = fold [
         [x,y,z] = basis
         setNorm v p = (pos =: p <+> normal =: v)
 
--- Indices into the vertex array for each face.
 noteIndices :: [GLU.Word32]
 noteIndices = take 36 $ foldMap (flip map faceInds . (+)) [0,4..]
     where
         faceInds = [0, 1, 2, 2, 1, 3]
 
--- Builds a cube VAO object, and returns a new function which given a
--- record which matches the constraint that it has two matrix fields 'cam'
--- and 'proj', draws that cube object
-buildNote :: (CamInfo <: f) => IO (FieldRec f -> IO ())
+buildNote :: IO (M44 GLfloat -> M44 GLfloat -> IO ())
 buildNote = do
     s <- GLU.simpleShaderProgram "shaders/note.vert" "shaders/note.frag"
     vb <- VGL.bufferVertices noteVerties
@@ -110,9 +102,9 @@ buildNote = do
         VGL.enableVertices' s vb
         VGL.bindVertices vb
         GL.bindBuffer GL.ElementArrayBuffer $= Just eb
-    return $ \appInfo -> GLU.withVAO vao $ do
+    return $ \viewProjMatrix modelMatrix -> GLU.withVAO vao $ do
         GL.currentProgram $= Just (GLU.program s)
-        VGL.setUniforms s (rcast appInfo :: FieldRec CamInfo)
+        VGL.setUniforms s (mvp =: (viewProjMatrix !*! modelMatrix))
         GLU.drawIndexedTris 12
     where
         light :: SField '("lightDir", V3 GLfloat)

@@ -1,9 +1,11 @@
 {-# LANGUAGE DataKinds, TypeOperators #-}
-import Data.Vinyl
-import Graphics.UI.GLFW (Key(Key'Escape))
-import Linear (V2(..), V3(..), M44, (!*!))
+import           Control.Monad
+import           Data.Vinyl
+import           Data.IORef
+import           Graphics.UI.GLFW (Key(Key'Escape))
+import           Linear
 import qualified Graphics.Rendering.OpenGL as GL
-import Graphics.Rendering.OpenGL (($=), GLfloat, GLint, GLsizei)
+import           Graphics.Rendering.OpenGL (($=), GLfloat, GLint, GLsizei)
 import qualified Graphics.GLUtil as GLU
 import qualified Graphics.GLUtil.Camera3D as Camera
 import qualified Graphics.VinylGL as VGL
@@ -11,20 +13,60 @@ import qualified Data.Set as S
 
 import Geometry (buildBoard, buildNote)
 import Window (initGL, InputState(..))
+import Music
 
 type Viewport = '("viewport", V2 GLsizei)
 
-type RenderContext = FieldRec [ '("modelViewProj", M44 GLfloat), Viewport ]
+type Music = [Note]
 
 data Renderables = Renderables {
-        renderBoard :: RenderContext -> IO (),
-        renderNote :: RenderContext -> IO ()
+        renderBoard :: M44 GLfloat -> IO (),
+        renderNote :: M44 GLfloat -> M44 GLfloat -> IO ()
     }
+
+data GameState = GameState {
+        progress :: IORef Time,
+        music :: Music,
+        finishingTime :: Time,
+        renderables :: Renderables,
+        projMatrix :: M44 GLfloat
+    }
+
+-- Stub method
+loadMusic :: Music
+loadMusic = [
+        Note (2, F1),
+        Note (2.5, F2),
+        Note (3, F3),
+        Note (3.5, F4),
+        Note (4, F3),
+        Note (5.5, F2),
+        Note (6, F1),
+
+        Note (10, F1),
+        Note (11, F2),
+        Note (12, F3),
+        Note (13, F4),
+        Note (14, F3),
+        Note (15, F2),
+        Note (16, F1)
+    ]
+
+getLength :: Music -> Time
+getLength notes = time
+    where
+        Note (time, _) = last notes
+
+translate :: GLfloat -> GLfloat -> GLfloat -> M44 GLfloat
+translate x y z = mkTransformationMat identity (V3 x y z)
 
 main :: IO ()
 main = do
     let width = 1024
         height = 768
+
+    -- Load the music
+    let music = loadMusic
 
     -- Create the window and store the window upate function
     updateWindow <- initGL "Programmer Hero" width height
@@ -37,24 +79,44 @@ main = do
 
     -- Build scene and store entity render functions
     renderables <- Renderables <$> buildBoard <*> buildNote
-
+    
     -- Calculate the projection matrix
     let aspect = (fromIntegral width) / (fromIntegral height)
-    let projMatrix = Camera.projectionMatrix (Camera.deg2rad 30) aspect 0.1 100
+    let projMatrix = Camera.projectionMatrix (Camera.deg2rad 30) aspect 0.1 1000
+    
+    -- Set up the game state
+    progressRef <- newIORef 0.0
+    let state = GameState progressRef music (getLength music) renderables projMatrix
 
     -- Kick off the main loop
-    mainLoop camera updateWindow renderables projMatrix
+    mainLoop camera updateWindow state
     where
         -- Render Function
-        render :: Renderables -> RenderContext -> IO ()
-        render renderables cxt = do
-            renderBoard renderables cxt
+        render :: GameState -> M44 GLfloat -> IO ()
+        render state viewProjMatrix = do
+            renderBoard (renderables state) viewProjMatrix
+
+            -- Render a note for each note in the song
+            forM_ (music state) $ \(Note (time, note)) -> do
+                elapsed <- realToFrac <$> readIORef (progress state)
+                let xoffset F1 = -1.5
+                    xoffset F2 = -0.5
+                    xoffset F3 = 0.5
+                    xoffset F4 = 1.5
+                    x = (xoffset note) * 4
+                    modelMatrix = translate x 0 ((elapsed - (realToFrac time)) * 16 + 32)
+                renderNote (renderables state) viewProjMatrix modelMatrix
 
         -- Main Loop
-        mainLoop :: Camera.Camera GLfloat -> IO InputState -> Renderables -> M44 GLfloat -> IO ()
-        mainLoop c updateWindow renderables projMatrix = do
+        mainLoop :: Camera.Camera GLfloat -> IO InputState -> GameState -> IO ()
+        mainLoop c updateWindow state = do
             windowState <- updateWindow
 
+            -- UPDATE
+            -- Increment the timer
+            modifyIORef' (progress state) (+(timeStep windowState))
+
+            -- RENDER
             -- Clear framebuffer
             GL.clear [GL.ColorBuffer, GL.DepthBuffer]
 
@@ -62,12 +124,11 @@ main = do
             let viewMatrix = Camera.camMatrix c
 
             -- Draw using render parameters
-            render renderables (SField =: (projMatrix !*! viewMatrix) <+>
-                                SField =: (fromIntegral <$> windowSize windowState))
+            render state ((projMatrix state) !*! viewMatrix)
 
             -- Quit if escaped has been pressed
-            if S.member Key'Escape (keysPressed windowState)
+            if shouldQuit windowState
             then return () -- terminate
-            else mainLoop c updateWindow renderables projMatrix
-        camera = Camera.tilt (-20) $ Camera.dolly (V3 0 2 8) Camera.fpsCamera
+            else mainLoop c updateWindow state
+        camera = Camera.tilt (-20) $ Camera.dolly (V3 0 16 64) Camera.fpsCamera
 
