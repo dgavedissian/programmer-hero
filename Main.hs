@@ -11,16 +11,16 @@ import qualified Constants as C
 import           Geometry
 import           Window (initGL, InputState(..), KeyDownEvent)
 import           Music
+import           Code
 
 -- Imports for game logic
-import Control.Concurrent
 import Data.List
-import Data.Time
 import Data.Maybe
 import Sound.MIDI.Message.Channel
 import System.MIDI
 import System.Random
 import System.Environment
+import System.IO
 import qualified Data.EventList.Relative.TimeBody as EL
 import qualified Sound.MIDI.File                  as F
 import qualified Sound.MIDI.File.Event            as FE
@@ -37,17 +37,18 @@ data Renderables = Renderables {
     }
 
 data GameState = GameState {
-        progress :: IORef Time,
-        music :: IORef Music,
-        playback :: IORef PlaybackData,
-        connection :: Maybe Connection,
+        progress      :: IORef Time,
+        music         :: IORef Music,
+        playback      :: IORef PlaybackData,
+        connection    :: Maybe Connection,
+        tokens        :: IORef [Code],
         finishingTime :: Time,
-        f1Size :: IORef GLfloat,
-        f2Size :: IORef GLfloat,
-        f3Size :: IORef GLfloat,
-        f4Size :: IORef GLfloat,
-        renderables :: Renderables,
-        projMatrix :: M44 GLfloat
+        f1Size        :: IORef GLfloat,
+        f2Size        :: IORef GLfloat,
+        f3Size        :: IORef GLfloat,
+        f4Size        :: IORef GLfloat,
+        renderables   :: Renderables,
+        projMatrix    :: M44 GLfloat
     }
 
 -- Turn from relative times to absolute times in the fst of the tuples
@@ -105,6 +106,22 @@ checkHit music elapsed beat = beat == b && (t - elapsed) < C.timeToCatch
     where
         Note (t, b) = head music
 
+printNextToken :: GameState -> IO ()
+printNextToken state = do
+    toks <- readIORef (tokens state)
+    case toks of
+      (Indent i : ts) -> putStr i >> writeIORef (tokens state) ts
+      (Token t : ts) -> do
+          putStr t
+          writeIORef (tokens state) ts
+          printNextToken state
+      [] -> return ()
+
+loop :: [Code] -> IO ()
+loop [] = return ()
+loop (Indent i : cs) = putStr i >> loop cs
+loop (Token t : cs) = getChar >> putStr t >> loop cs
+
 keyDownEvent :: GameState -> KeyDownEvent
 keyDownEvent state key
     | key `elem` [Key'F1, Key'F2, Key'F3, Key'F4] = do
@@ -112,6 +129,7 @@ keyDownEvent state key
         musicState <- readIORef $ music state
         elapsed <- readIORef $ progress state
         when (checkHit musicState elapsed (mapKey key)) $ do
+            printNextToken state
             modifyIORef' (music state) tail
     | otherwise = return ()
     where
@@ -129,7 +147,7 @@ keyDownEvent state key
 main :: IO ()
 main = mdo
     -- Load the music
-    [midiFile] <- getArgs
+    [midiFile, source] <- getArgs
     ds <- enumerateDestinations
     conn <- case ds of
         (destination : _) -> do
@@ -138,6 +156,11 @@ main = mdo
             return $ Just c
         _ -> return Nothing
     (music, playback) <- loadMusic midiFile
+
+    hSetEcho stdin False
+    hSetBuffering stdin NoBuffering
+    hSetBuffering stdout NoBuffering
+    toks <- loadTokens source
 
     -- Create the window and store the window upate function
     -- state doesn't actually exist at this point, but mdo saves us here so
@@ -161,6 +184,7 @@ main = mdo
     musicRef <- newIORef music
     progressRef <- newIORef 0.0
     playbackRef <- newIORef playback
+    tokRef <- newIORef toks
     f1Ref <- newIORef 1.0
     f2Ref <- newIORef 1.0
     f3Ref <- newIORef 1.0
@@ -169,6 +193,7 @@ main = mdo
                           musicRef
                           playbackRef
                           conn
+                          tokRef
                           (getLength music)
                           f1Ref
                           f2Ref
