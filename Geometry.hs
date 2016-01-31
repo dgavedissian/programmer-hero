@@ -39,7 +39,7 @@ quadIndices = [0, 1, 2, 2, 1, 3]
 boardVertices :: [FieldRec '[Pos]]
 boardVertices = map (\p -> pos =: p) positions
     where
-        positions = map (\(V2 x z) -> V3 (x * (C.boardWidth / 2)) 0 (z * C.boardLength)) square
+        positions = map (\(V2 x z) -> V3 (x * (C.boardWidth / 2)) 0 (z * C.boardActualLength / 2)) square
 
 buildBoard :: IO (M44 GLfloat -> IO ())
 buildBoard = do
@@ -59,7 +59,7 @@ buildBoard = do
 markerDamageVertices :: [FieldRec '[Pos]]
 markerDamageVertices = map (\p -> pos =: p) positions
     where
-        positions = map (\(V2 x z) -> V3 (x * (C.boardWidth / 8)) 0 (z * C.boardLength)) square
+        positions = map (\(V2 x z) -> V3 (x * (C.boardWidth / 8)) 0 (z * C.boardActualLength / 2)) square
 
 buildMarkerDamage :: IO (M44 GLfloat -> M44 GLfloat -> V4 GLfloat -> IO ())
 buildMarkerDamage = do

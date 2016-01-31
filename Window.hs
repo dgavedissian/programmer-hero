@@ -43,6 +43,7 @@ initGL windowTitle width height downEvent upEvent = do
 
     -- Create a window, and store the context
     m@(~(Just w)) <- createWindow width height windowTitle Nothing Nothing
+    setWindowPos w 0 0
     when (isNothing m) (error "Couldn't create window!")
     makeContextCurrent m
 
