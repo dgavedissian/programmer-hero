@@ -139,6 +139,7 @@ missedNote state F3 = writeIORef (f3Damage state) 1
 missedNote state F4 = writeIORef (f4Damage state) 1
 
 dropExpiredWhile :: GameState -> (Note -> Bool) -> [Note] -> IO [Note]
+dropExpiredWhile _ _ [] = return []
 dropExpiredWhile state pred all@(n@(Note (_, b)):ns) =
         if pred n then do
             missedNote state b
