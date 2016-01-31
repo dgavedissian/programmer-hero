@@ -212,10 +212,10 @@ main = mdo
     f2Ref <- newIORef 1.0
     f3Ref <- newIORef 1.0
     f4Ref <- newIORef 1.0
-    f1Damage <- newIORef 1.0
-    f2Damage <- newIORef 1.0
-    f3Damage <- newIORef 1.0
-    f4Damage <- newIORef 1.0
+    f1Damage <- newIORef 0.0
+    f2Damage <- newIORef 0.0
+    f3Damage <- newIORef 0.0
+    f4Damage <- newIORef 0.0
     let state = GameState progressRef
                           musicRef
                           playbackRef

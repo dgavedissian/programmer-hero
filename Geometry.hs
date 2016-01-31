@@ -112,10 +112,10 @@ buildMarker = do
 ------------------------
 noteVertices :: [FieldRec '[Pos]]
 noteVertices = map (\p -> pos =: p) [
-        V3 0 0 (-1),
-        V3 1 0 0,
-        V3 0 0 1,
-        V3 (-1) 0 0,
+        V3 0 0 (-1.3),
+        V3 1.3 0 0,
+        V3 0 0 1.3,
+        V3 (-1.3) 0 0,
         V3 0 0.5 0
     ]
 
