@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds, TypeOperators, RecursiveDo #-}
+{-# LANGUAGE DataKinds, TypeOperators, RecursiveDo, BangPatterns #-}
 import           Control.Monad
 import           Data.IORef
 import           Graphics.UI.GLFW
@@ -11,6 +11,21 @@ import qualified Constants as C
 import           Geometry
 import           Window (initGL, InputState(..), KeyDownEvent)
 import           Music
+
+-- Imports for game logic
+import Control.Concurrent
+import Data.List
+import Data.Time
+import Data.Maybe
+import Sound.MIDI.Message.Channel
+import System.MIDI
+import System.Random
+import System.Environment
+import qualified Data.EventList.Relative.TimeBody as EL
+import qualified Sound.MIDI.File                  as F
+import qualified Sound.MIDI.File.Event            as FE
+import qualified Sound.MIDI.File.Load             as FL
+import qualified Sound.MIDI.Message.Channel.Voice as MCV
 
 type Music = [Note]
 
@@ -28,25 +43,29 @@ data GameState = GameState {
         projMatrix :: M44 GLfloat
     }
 
--- Stub method
-loadMusic :: Music
-loadMusic = [
-        Note (2, F1),
-        Note (2, F2),
-        Note (3, F3),
-        Note (3.5, F4),
-        Note (4, F3),
-        Note (5.5, F2),
-        Note (6, F1),
+-- Turn from relative times to absolute times in the fst of the tuples
+accumTimes :: Num t => [(t, a)] -> [(t, a)]
+accumTimes xs
+    = reverse . snd $ foldl' (\(!v, !acc) (!val, !a') ->
+        (val + v, (val + v, a') : acc)) (0, []) xs
 
-        Note (10, F1),
-        Note (11, F2),
-        Note (12, F3),
-        Note (13, F4),
-        Note (14, F3),
-        Note (15, F2),
-        Note (16, F1)
-    ]
+loadMusic :: FilePath -> IO Music
+loadMusic file = do
+    tracks <- F.getTracks <$> FL.fromFile file
+    let events = sort $ concatMap (accumTimes . EL.toPairList) tracks
+        filtered = fst $ foldl' (\(!acc, !lt) e@(!t, !ev)
+                                    -> if lt < t
+                                           then (e : acc, t)
+                                           else (acc, lt)) ([], 0) events
+    catMaybes <$!> mapM fromEvent filtered
+
+fromEvent :: (FE.ElapsedTime, FE.T) -> IO (Maybe Note)
+fromEvent (t, FE.MIDIEvent (Cons ch _)) = do
+    r <- randomRIO (0, 3) :: IO Int
+    let a = if r == 0 then 1 else 0
+        ch' = (fromChannel ch + a) `mod` 4
+    return $ Just $ Note (fromIntegral t / 1000, toEnum ch')
+fromEvent _ = return Nothing
 
 getLength :: Music -> Time
 getLength notes = time
@@ -83,7 +102,14 @@ keyDownEvent state key
 main :: IO ()
 main = mdo
     -- Load the music
-    let music = loadMusic
+    [midiFile] <- getArgs
+    (destination : _) <- enumerateDestinations
+    conn <- openDestination destination
+    start conn
+    --_ <- playSingleThread song conn
+    stop conn
+    close conn
+    music <- loadMusic midiFile
 
     -- Create the window and store the window upate function
     -- state doesn't actually exist at this point, but mdo saves us here so

@@ -16,7 +16,7 @@ data Beat
   | F2
   | F3
   | F4
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Enum)
 
 data CsongorNote
   = NoteOn Int
