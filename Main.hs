@@ -226,8 +226,7 @@ main = mdo
                 elapsed <- realToFrac <$> readIORef (progress state)
                 let x = xoffset note * C.noteSpeed
                     distance = (elapsed - (realToFrac time)) * C.markerSize / C.timeToCatch
-                    modelMatrix = (translateMatrix x 0.5 (distance + C.boardLength / 2))
-                                   !*! (scaleMatrix 1 0.5 1)
+                    modelMatrix = translateMatrix x 0 (distance + C.boardLength / 2)
                 renderNote (renderables state) viewProjMatrix modelMatrix (C.getBeatColours note)
 
         -- Main Loop

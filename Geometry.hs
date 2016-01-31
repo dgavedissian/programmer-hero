@@ -37,7 +37,7 @@ boardVertices :: [FieldRec '[Pos, Normal, Colour]]
 boardVertices = map (\p -> pos =: p <+> normal =: z <+> col =: (V3 0.8 0.8 0.8)) positions
     where
         [_,_,z] = basis
-        positions = map (\(V2 x z) -> V3 (x * (C.boardWidth / 2)) 0 (z * (C.boardLength / 2))) square
+        positions = map (\(V2 x z) -> V3 (x * (C.boardWidth / 2)) 0 (z * C.boardLength)) square
 
 boardIndices :: [GLU.Word32]
 boardIndices = [0, 1, 2, 2, 1, 3]
@@ -88,26 +88,22 @@ buildMarker = do
 ------------------------
 -- Notes
 ------------------------
-front,back,left,right,top,bottom :: [V3 GLfloat]
-front  = map (\(V2 x y) -> V3 x y 1) square
-back   = map (\(V2 x y) -> V3 (-x) y (-1)) square
-left   = map (\(V2 z y) -> V3 (-1) y z) square
-right  = map (\(V2 z y) -> V3 1 y (-z)) square
-top    = map (\(V2 x z) -> V3 x 1 (-z)) square
-bottom = map (\(V2 x z) -> V3 x (-1) z) square
-
-noteVerties :: [FieldRec '[Pos]]
-noteVerties = map (\p -> pos =: p) $ concat [front, back, left, right, top, bottom]
+noteVertices :: [FieldRec '[Pos]]
+noteVertices = map (\p -> pos =: p) [
+        V3 0 0 (-1),
+        V3 1 0 0,
+        V3 0 0 1,
+        V3 (-1) 0 0,
+        V3 0 0.5 0
+    ]
 
 noteIndices :: [GLU.Word32]
-noteIndices = take 36 $ foldMap (flip map faceInds . (+)) [0, 4..]
-    where
-        faceInds = [0, 1, 2, 2, 1, 3]
+noteIndices = concatMap (\i -> [i, (i + 3) `mod` 4, 4]) [0..3]
 
 buildNote :: IO (M44 GLfloat -> M44 GLfloat -> V3 GLfloat -> IO ())
 buildNote = do
     s <- GLU.simpleShaderProgram "shaders/note.vert" "shaders/note.frag"
-    vb <- VGL.bufferVertices noteVerties
+    vb <- VGL.bufferVertices noteVertices
     eb <- GLU.makeBuffer GL.ElementArrayBuffer noteIndices
     vao <- GLU.makeVAO $ do
         GL.currentProgram $= Just (GLU.program s)
