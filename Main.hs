@@ -28,6 +28,7 @@ import qualified Sound.MIDI.File.Load             as FL
 import qualified Sound.MIDI.Message.Channel.Voice as MCV
 
 type Music = [Note]
+type PlaybackData = [(Double, FE.T)]
 
 data Renderables = Renderables {
         renderBoard :: M44 GLfloat -> IO (),
@@ -38,6 +39,8 @@ data Renderables = Renderables {
 data GameState = GameState {
         progress :: IORef Time,
         music :: IORef Music,
+        playback :: IORef PlaybackData,
+        connection :: Connection,
         finishingTime :: Time,
         renderables :: Renderables,
         projMatrix :: M44 GLfloat
@@ -49,15 +52,16 @@ accumTimes xs
     = reverse . snd $ foldl' (\(!v, !acc) (!val, !a') ->
         (val + v, (val + v, a') : acc)) (0, []) xs
 
-loadMusic :: FilePath -> IO Music
+loadMusic :: FilePath -> IO (Music, PlaybackData)
 loadMusic file = do
     tracks <- F.getTracks <$> FL.fromFile file
     let events = sort $ concatMap (accumTimes . EL.toPairList) tracks
         filtered = fst $ foldl' (\(!acc, !lt) e@(!t, !ev)
-                                    -> if lt < t
+                                    -> if lt + 100 < t
                                            then (e : acc, t)
                                            else (acc, lt)) ([], 0) events
-    catMaybes <$!> mapM fromEvent filtered
+    fs <- catMaybes <$!> mapM fromEvent filtered
+    return (fs, map (\(f, s) -> (fromIntegral f / 1000, s)) events)
 
 fromEvent :: (FE.ElapsedTime, FE.T) -> IO (Maybe Note)
 fromEvent (t, FE.MIDIEvent (Cons ch _)) = do
@@ -66,6 +70,19 @@ fromEvent (t, FE.MIDIEvent (Cons ch _)) = do
         ch' = (fromChannel ch + a) `mod` 4
     return $ Just $ Note (fromIntegral t / 1000, toEnum ch')
 fromEvent _ = return Nothing
+
+playNote :: Connection -> FE.T -> IO ()
+playNote connection (FE.MIDIEvent (Cons ch body))
+    = play ch body connection
+playNote _ _ = return ()
+
+play :: Channel -> Body -> Connection -> IO ()
+play ch (Voice (MCV.NoteOn p v)) conn
+    = send conn (MidiMessage (fromChannel ch) (NoteOn (fromPitch p) (fromVelocity v)))
+play ch (Voice (MCV.NoteOff p v)) conn
+    = send conn (MidiMessage (fromChannel ch) (NoteOff (fromPitch p) (fromVelocity v)))
+play _ _ _ = return ()
+
 
 getLength :: Music -> Time
 getLength notes = time
@@ -106,10 +123,7 @@ main = mdo
     (destination : _) <- enumerateDestinations
     conn <- openDestination destination
     start conn
-    --_ <- playSingleThread song conn
-    stop conn
-    close conn
-    music <- loadMusic midiFile
+    (music, playback) <- loadMusic midiFile
 
     -- Create the window and store the window upate function
     -- state doesn't actually exist at this point, but mdo saves us here so
@@ -132,10 +146,19 @@ main = mdo
     -- Set up the game state
     musicRef <- newIORef music
     progressRef <- newIORef 0.0
-    state <- return $ GameState progressRef musicRef (getLength music) renderables projMatrix
+    playbackRef <- newIORef playback
+    let state = GameState progressRef
+                          musicRef
+                          playbackRef
+                          conn
+                          (getLength music)
+                          renderables
+                          projMatrix
 
     -- Kick off the main loop
     mainLoop camera updateWindow state
+    stop conn
+    close conn
     where
         -- Render Function
         render :: GameState -> M44 GLfloat -> IO ()
@@ -155,7 +178,7 @@ main = mdo
 
             -- Drop notes which have already been played
             elapsed <- realToFrac <$> readIORef (progress state)
-            modifyIORef' (music state) (filter (\(Note (t, _)) -> elapsed < t))
+            modifyIORef' (music state) (dropWhile (\(Note (t, _)) -> elapsed >= t))
 
             -- Render a note for each note in the song
             currentMusic <- readIORef (music state)
@@ -176,6 +199,9 @@ main = mdo
             -- Increment the timer
             modifyIORef' (progress state) (+ timeStep windowState)
 
+            progress' <- readIORef (progress state)
+            playAllDue progress' state
+
             -- RENDER
             -- Clear framebuffer
             GL.clear [GL.ColorBuffer, GL.DepthBuffer]
@@ -195,4 +221,12 @@ main = mdo
             unless (null remMusic || shouldQuit windowState) $
               mainLoop c updateWindow state
         camera = Camera.tilt (-20) $ Camera.dolly (V3 0 16 64) Camera.fpsCamera
+        playAllDue :: Time -> GameState -> IO ()
+        playAllDue progress state = do
+            es <- readIORef (playback state)
+            let (abstime, event) = head es
+            when (abstime <= progress) $ do
+                playNote (connection state) event
+                modifyIORef' (playback state) tail
+                playAllDue progress state
 

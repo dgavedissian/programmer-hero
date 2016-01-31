@@ -18,12 +18,6 @@ data Beat
   | F4
   deriving (Show, Eq, Ord, Enum)
 
-data CsongorNote
-  = NoteOn Int
-  | NoteOff Int
-  | Bullshit
-  deriving (Show, Eq)
-
 newtype Note = Note { note :: (Time, Beat) }
         deriving (Show, Eq, Ord)
 
@@ -32,21 +26,6 @@ newtype Note = Note { note :: (Time, Beat) }
 midiLoadFile :: FilePath -> IO F.T
 midiLoadFile
   = FL.fromFile
-
-fileToCsongor :: FilePath -> IO [(Int, CsongorNote)]
-fileToCsongor fp
-  = filter ((/= Bullshit) . snd) . csongorify .
-        fetchNoteEvents . getMidiEvents . midiGetEvents . midiGetTracks
-          <$> midiLoadFile fp
-
-csongorify :: [(F.ElapsedTime, MCV.T)] -> [(Int, CsongorNote)]
-csongorify
-  = map (fromIntegral *** csongorifyNote)
-
-csongorifyNote :: MCV.T -> CsongorNote
-csongorifyNote (MCV.NoteOn p _)  = NoteOn (MC.fromPitch p)
-csongorifyNote (MCV.NoteOff p _) = NoteOff (MC.fromPitch p)
-csongorifyNote _                 = Bullshit
 
 fetchNoteEvents :: [(F.ElapsedTime, FE.T)] -> [(F.ElapsedTime, MCV.T)]
 fetchNoteEvents fe
