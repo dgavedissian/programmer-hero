@@ -52,6 +52,10 @@ data GameState = GameState {
         f2Damage      :: IORef GLfloat,
         f3Damage      :: IORef GLfloat,
         f4Damage      :: IORef GLfloat,
+        f1Pressed     :: IORef Bool,
+        f2Pressed     :: IORef Bool,
+        f3Pressed     :: IORef Bool,
+        f4Pressed     :: IORef Bool,
         renderables   :: Renderables,
         projMatrix    :: M44 GLfloat
     }
@@ -134,7 +138,7 @@ missedNote state F2 = writeIORef (f2Damage state) 1
 missedNote state F3 = writeIORef (f3Damage state) 1
 missedNote state F4 = writeIORef (f4Damage state) 1
 
-dropExpiredWhile :: GameState -> (Note -> Bool) -> [Note] -> IO ([Note])
+dropExpiredWhile :: GameState -> (Note -> Bool) -> [Note] -> IO [Note]
 dropExpiredWhile state pred all@(n@(Note (_, b)):ns) =
         if pred n then do
             missedNote state b
@@ -146,18 +150,36 @@ keyDownEvent :: GameState -> KeyEvent
 keyDownEvent state key
     | key `elem` [Key'F1, Key'F2, Key'F3, Key'F4] = do
         enlargeMarker key
+        writeIORef (keyPressed key $ state) True
+        --musicState <- readIORef $ music state
+        --elapsed <- readIORef $ progress state
+        --when (checkHit musicState elapsed (mapKey key)) $ do
+        --    printNextToken state
+        --    modifyIORef' (music state) tail
+    | key == Key'Enter = do
         musicState <- readIORef $ music state
         elapsed <- readIORef $ progress state
-        when (checkHit musicState elapsed (mapKey key)) $ do
-            printNextToken state
-            modifyIORef' (music state) tail
+        f1p <- readIORef (f1Pressed state)
+        when (f1p && checkHit musicState elapsed F1) hit
+        f2p <- readIORef (f2Pressed state)
+        when (f2p && checkHit musicState elapsed F2) hit
+        f3p <- readIORef (f3Pressed state)
+        when (f3p && checkHit musicState elapsed F3) hit
+        f4p <- readIORef (f4Pressed state)
+        when (f4p && checkHit musicState elapsed F4) hit
     | otherwise = return ()
     where
+        hit = do
+            printNextToken state
+            modifyIORef' (music state) tail
         mapKey Key'F1 = F1
         mapKey Key'F2 = F2
         mapKey Key'F3 = F3
         mapKey Key'F4 = F4
-        mapKey _ = undefined
+        keyPressed Key'F1 = f1Pressed
+        keyPressed Key'F2 = f2Pressed
+        keyPressed Key'F3 = f3Pressed
+        keyPressed Key'F4 = f4Pressed
         enlargeMarker Key'F1 = writeIORef (f1Size state) C.markerScale
         enlargeMarker Key'F2 = writeIORef (f2Size state) C.markerScale
         enlargeMarker Key'F3 = writeIORef (f3Size state) C.markerScale
@@ -165,7 +187,15 @@ keyDownEvent state key
         enlargeMarker _ = undefined
 
 keyUpEvent :: GameState -> KeyEvent
-keyUpEvent state key = return ()
+keyUpEvent state key
+    | key `elem` [Key'F1, Key'F2, Key'F3, Key'F4] = do
+        writeIORef (keyPressed key $ state) False
+    | otherwise = return ()
+    where
+        keyPressed Key'F1 = f1Pressed
+        keyPressed Key'F2 = f2Pressed
+        keyPressed Key'F3 = f3Pressed
+        keyPressed Key'F4 = f4Pressed
 
 main :: IO ()
 main = mdo
@@ -216,6 +246,10 @@ main = mdo
     f2Damage <- newIORef 0.0
     f3Damage <- newIORef 0.0
     f4Damage <- newIORef 0.0
+    f1Pressed <- newIORef False
+    f2Pressed <- newIORef False
+    f3Pressed <- newIORef False
+    f4Pressed <- newIORef False
     let state = GameState progressRef
                           musicRef
                           playbackRef
@@ -224,6 +258,7 @@ main = mdo
                           (getLength music)
                           f1Ref f2Ref f3Ref f4Ref
                           f1Damage f2Damage f3Damage f4Damage
+                          f1Pressed f2Pressed f3Pressed f4Pressed
                           renderables
                           projMatrix
 
@@ -248,10 +283,18 @@ main = mdo
                 fadeOut x = max (x - 0.05) 0
 
             -- Update animations
-            modifyIORef' (f1Size state) scaleDown
-            modifyIORef' (f2Size state) scaleDown
-            modifyIORef' (f3Size state) scaleDown
-            modifyIORef' (f4Size state) scaleDown
+            f1p <- readIORef (f1Pressed state)
+            unless f1p $
+                modifyIORef' (f1Size state) scaleDown
+            f2p <- readIORef (f2Pressed state)
+            unless f2p $
+                modifyIORef' (f2Size state) scaleDown
+            f3p <- readIORef (f3Pressed state)
+            unless f3p $
+                modifyIORef' (f3Size state) scaleDown
+            f4p <- readIORef (f4Pressed state)
+            unless f4p $
+                modifyIORef' (f4Size state) scaleDown
             modifyIORef' (f1Damage state) fadeOut
             modifyIORef' (f2Damage state) fadeOut
             modifyIORef' (f3Damage state) fadeOut
