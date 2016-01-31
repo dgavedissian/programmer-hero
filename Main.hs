@@ -61,7 +61,7 @@ scaleMatrix x y z = V4 (V4 x 0 0 0) (V4 0 y 0 0) (V4 0 0 z 0) (V4 0 0 0 1)
 
 -- Takes a list of notes which have not been missed already
 checkHit :: Music -> Time -> Beat -> Bool
-checkHit music elapsed beat = beat == b && (t - elapsed) < 1
+checkHit music elapsed beat = beat == b && (t - elapsed) < C.timeToCatch
     where
         Note (t, b) = head music
 
@@ -123,7 +123,7 @@ main = mdo
 
             -- Render the markers for each colour
             forM_ [F1, F2, F3, F4] $ \note -> do
-                let x = xoffset note * 4
+                let x = xoffset note * C.noteSpeed
                     modelMatrix = translateMatrix x 0.01 ((C.boardLength / 2) - (C.markerSize / 2))
                 renderMarker (renderables state) viewProjMatrix modelMatrix (C.getBeatColours note)
 
@@ -135,8 +135,9 @@ main = mdo
             currentMusic <- readIORef (music state)
             forM_ currentMusic $ \(Note (time, note)) -> do
                 elapsed <- realToFrac <$> readIORef (progress state)
-                let x = xoffset note * 4
-                    modelMatrix = (translateMatrix x 0.5 ((elapsed - (realToFrac time)) * 16 + 40))
+                let x = xoffset note * C.noteSpeed
+                    distance = (elapsed - (realToFrac time)) * C.markerSize / C.timeToCatch
+                    modelMatrix = (translateMatrix x 0.5 (distance + C.boardLength / 2))
                                    !*! (scaleMatrix 1 0.5 1)
                 renderNote (renderables state) viewProjMatrix modelMatrix (C.getBeatColours note)
 
