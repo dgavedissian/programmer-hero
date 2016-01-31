@@ -72,7 +72,7 @@ keyDownEvent state key
         musicState <- readIORef $ music state
         elapsed <- readIORef $ progress state
         when (checkHit musicState elapsed (mapKey key)) $
-            modifyIORef' (music state) (drop 1)
+            modifyIORef' (music state) tail
     | otherwise = return ()
     where
         mapKey Key'F1 = F1
@@ -99,7 +99,7 @@ main = mdo
 
     -- Build scene and store entity render functions
     renderables <- Renderables <$> buildBoard <*> buildMarker <*> buildNote
-    
+
     -- Calculate the projection matrix
     let aspect = (fromIntegral C.width) / (fromIntegral C.height)
     let projMatrix = Camera.projectionMatrix (Camera.deg2rad 30) aspect 0.1 1000
@@ -116,7 +116,7 @@ main = mdo
         render :: GameState -> M44 GLfloat -> IO ()
         render state viewProjMatrix = do
             renderBoard (renderables state) viewProjMatrix
-                
+
             let xoffset F1 = -1.5
                 xoffset F2 = -0.5
                 xoffset F3 = 0.5
