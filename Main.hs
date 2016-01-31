@@ -4,6 +4,7 @@ import           Data.IORef
 import           Graphics.UI.GLFW
 import           Linear
 import qualified Graphics.Rendering.OpenGL as GL
+import qualified Graphics.Rendering.OpenGL.Raw as GLRaw
 import           Graphics.Rendering.OpenGL (($=), GLfloat)
 import qualified Graphics.GLUtil.Camera3D as Camera
 
@@ -232,7 +233,7 @@ main = mdo
 
     -- Calculate the projection matrix
     let aspect = (fromIntegral C.width) / (fromIntegral C.height)
-    let projMatrix = Camera.projectionMatrix (Camera.deg2rad 30) aspect 0.1 1000
+    let projMatrix = Camera.projectionMatrix (Camera.deg2rad 30) aspect 0.1 500
 
     -- Set up the game state
     musicRef <- newIORef music
@@ -274,6 +275,10 @@ main = mdo
         -- Render Function
         render :: GameState -> M44 GLfloat -> IO ()
         render state viewProjMatrix = do
+            -- Disable depth buffering
+            GLRaw.glDisable GLRaw.gl_DEPTH_TEST
+
+            -- Render the board
             renderBoard (renderables state) viewProjMatrix
 
             let xoffset F1 = -1.5
@@ -319,8 +324,8 @@ main = mdo
                     damageAlpha F2 = f2DamageAlpha
                     damageAlpha F3 = f3DamageAlpha
                     damageAlpha F4 = f4DamageAlpha
-                    damageColour = v3tov4 (C.getBeatColours beat) ((damageAlpha beat) * 0.5)
-                    damageMatrix = translateMatrix x 0.01 0
+                    damageColour = v3tov4 (C.getBeatColours beat) (damageAlpha beat)
+                    damageMatrix = translateMatrix x 0 0
                 renderMarkerDamage (renderables state) viewProjMatrix damageMatrix damageColour
                 
                 -- Render Marker
@@ -329,7 +334,7 @@ main = mdo
                     scale F3 = f3CurSize
                     scale F4 = f4CurSize
                     scaleSize = scale beat
-                    modelMatrix = (translateMatrix x 0.01 ((C.boardLength / 2) - (C.markerSize / 2))) !*! (scaleMatrix scaleSize scaleSize scaleSize)
+                    modelMatrix = (translateMatrix x 0 ((C.boardLength / 2) - (C.markerSize / 2))) !*! (scaleMatrix scaleSize scaleSize scaleSize)
                 renderMarker (renderables state) viewProjMatrix modelMatrix (C.getBeatColours beat)
 
             -- Drop notes which have already been played
@@ -337,6 +342,9 @@ main = mdo
             currentMusic <- readIORef $ music state
             filteredMusic <- dropExpiredWhile state (\(Note (t, _)) -> elapsed >= t) currentMusic
             writeIORef (music state) filteredMusic
+
+            -- Enable depth buffering
+            GLRaw.glEnable GLRaw.gl_DEPTH_TEST
 
             -- Render a note for each note in the song
             currentMusic <- readIORef (music state)
