@@ -71,10 +71,8 @@ keyDownEvent state key
     | key `elem` [Key'F1, Key'F2, Key'F3, Key'F4] = do
         musicState <- readIORef $ music state
         elapsed <- readIORef $ progress state
-        if checkHit musicState elapsed (mapKey key) then
+        when (checkHit musicState elapsed (mapKey key)) $
             modifyIORef' (music state) (drop 1)
-        else
-            return () -- miss
     | otherwise = return ()
     where
         mapKey Key'F1 = F1
@@ -104,11 +102,11 @@ main = mdo
 
     -- Build scene and store entity render functions
     renderables <- Renderables <$> buildBoard <*> buildNote
-    
+
     -- Calculate the projection matrix
     let aspect = (fromIntegral width) / (fromIntegral height)
     let projMatrix = Camera.projectionMatrix (Camera.deg2rad 30) aspect 0.1 1000
-    
+
     -- Set up the game state
     musicRef <- newIORef music
     progressRef <- newIORef 0.0
@@ -145,7 +143,7 @@ main = mdo
 
             -- UPDATE
             -- Increment the timer
-            modifyIORef' (progress state) (+(timeStep windowState))
+            modifyIORef' (progress state) (+ timeStep windowState)
 
             -- RENDER
             -- Clear framebuffer
@@ -158,8 +156,7 @@ main = mdo
             render state ((projMatrix state) !*! viewMatrix)
 
             -- Quit if escaped has been pressed
-            if shouldQuit windowState
-            then return () -- terminate
-            else mainLoop c updateWindow state
+            unless (shouldQuit windowState) $
+              mainLoop c updateWindow state
         camera = Camera.tilt (-20) $ Camera.dolly (V3 0 16 64) Camera.fpsCamera
 
