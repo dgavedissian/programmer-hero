@@ -53,15 +53,15 @@ data GameState = GameState {
 -- Turn from relative times to absolute times in the fst of the tuples
 accumTimes :: Num t => [(t, a)] -> [(t, a)]
 accumTimes xs
-    = reverse . snd $ foldl' (\(!v, !acc) (!val, !a') ->
+    = snd $ foldl' (\(!v, !acc) (!val, !a') ->
         (val + v, (val + v, a') : acc)) (0, []) xs
 
 loadMusic :: FilePath -> IO (Music, PlaybackData)
 loadMusic file = do
     tracks <- F.getTracks <$> FL.fromFile file
     let events = sort $ concatMap (accumTimes . EL.toPairList) tracks
-        filtered = fst $ foldl' (\(!acc, !lt) e@(!t, !ev)
-                                    -> if lt + 100 < t
+        filtered = reverse . fst $ foldl' (\(!acc, !lt) e@(!t, !ev)
+                                    -> if lt + 185 < t
                                            then (e : acc, t)
                                            else (acc, lt)) ([], 0) events
     fs <- catMaybes <$!> mapM fromEvent filtered
@@ -111,7 +111,7 @@ keyDownEvent state key
         enlargeMarker key
         musicState <- readIORef $ music state
         elapsed <- readIORef $ progress state
-        when (checkHit musicState elapsed (mapKey key)) $
+        when (checkHit musicState elapsed (mapKey key)) $ do
             modifyIORef' (music state) tail
     | otherwise = return ()
     where
@@ -135,7 +135,6 @@ main = mdo
         (destination : _) -> do
             c <- openDestination destination
             start c
-            close c
             return $ Just c
         _ -> return Nothing
     (music, playback) <- loadMusic midiFile
