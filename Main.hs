@@ -1,8 +1,8 @@
-{-# LANGUAGE DataKinds, TypeOperators #-}
+{-# LANGUAGE DataKinds, TypeOperators, RecursiveDo #-}
 import           Control.Monad
 import           Data.Vinyl
 import           Data.IORef
-import           Graphics.UI.GLFW (Key(Key'Escape))
+import           Graphics.UI.GLFW
 import           Linear
 import qualified Graphics.Rendering.OpenGL as GL
 import           Graphics.Rendering.OpenGL (($=), GLfloat, GLint, GLsizei)
@@ -12,7 +12,7 @@ import qualified Graphics.VinylGL as VGL
 import qualified Data.Set as S
 
 import Geometry (buildBoard, buildNote)
-import Window (initGL, InputState(..))
+import Window (initGL, InputState(..), KeyDownEvent)
 import Music
 
 type Viewport = '("viewport", V2 GLsizei)
@@ -26,7 +26,7 @@ data Renderables = Renderables {
 
 data GameState = GameState {
         progress :: IORef Time,
-        music :: Music,
+        music :: IORef Music,
         finishingTime :: Time,
         renderables :: Renderables,
         projMatrix :: M44 GLfloat
@@ -60,8 +60,31 @@ getLength notes = time
 translate :: GLfloat -> GLfloat -> GLfloat -> M44 GLfloat
 translate x y z = mkTransformationMat identity (V3 x y z)
 
+-- Takes a list of notes which have not been missed already
+checkHit :: Music -> Time -> Beat -> Bool
+checkHit music elapsed beat = beat == b && (t - elapsed) < 1
+    where
+        Note (t, b) = head music
+
+keyDownEvent :: GameState -> KeyDownEvent
+keyDownEvent state key
+    | key `elem` [Key'F1, Key'F2, Key'F3, Key'F4] = do
+        musicState <- readIORef $ music state
+        elapsed <- readIORef $ progress state
+        if checkHit musicState elapsed (mapKey key) then
+            modifyIORef' (music state) (drop 1)
+        else
+            return () -- miss
+    | otherwise = return ()
+    where
+        mapKey Key'F1 = F1
+        mapKey Key'F2 = F2
+        mapKey Key'F3 = F3
+        mapKey Key'F4 = F4
+        mapKey _ = error "This can never happen"
+
 main :: IO ()
-main = do
+main = mdo
     let width = 1024
         height = 768
 
@@ -69,7 +92,9 @@ main = do
     let music = loadMusic
 
     -- Create the window and store the window upate function
-    updateWindow <- initGL "Programmer Hero" width height
+    -- state doesn't actually exist at this point, but mdo saves us here so
+    -- whatever
+    updateWindow <- initGL "Programmer Hero" width height (keyDownEvent state)
 
     -- Set up rendering settings
     GL.clearColor $= GL.Color4 0.1 0.1 0.6 1
@@ -85,8 +110,9 @@ main = do
     let projMatrix = Camera.projectionMatrix (Camera.deg2rad 30) aspect 0.1 1000
     
     -- Set up the game state
+    musicRef <- newIORef music
     progressRef <- newIORef 0.0
-    let state = GameState progressRef music (getLength music) renderables projMatrix
+    state <- return $ GameState progressRef musicRef (getLength music) renderables projMatrix
 
     -- Kick off the main loop
     mainLoop camera updateWindow state
@@ -96,15 +122,20 @@ main = do
         render state viewProjMatrix = do
             renderBoard (renderables state) viewProjMatrix
 
+            -- Drop notes which have already been played
+            elapsed <- realToFrac <$> readIORef (progress state)
+            modifyIORef' (music state) (filter (\(Note (t, _)) -> elapsed < t))
+
             -- Render a note for each note in the song
-            forM_ (music state) $ \(Note (time, note)) -> do
+            currentMusic <- readIORef (music state)
+            forM_ currentMusic $ \(Note (time, note)) -> do
                 elapsed <- realToFrac <$> readIORef (progress state)
                 let xoffset F1 = -1.5
                     xoffset F2 = -0.5
                     xoffset F3 = 0.5
                     xoffset F4 = 1.5
                     x = (xoffset note) * 4
-                    modelMatrix = translate x 0 ((elapsed - (realToFrac time)) * 16 + 32)
+                    modelMatrix = translate x 0 ((elapsed - (realToFrac time)) * 16 + 40)
                 renderNote (renderables state) viewProjMatrix modelMatrix
 
         -- Main Loop
