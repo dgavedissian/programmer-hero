@@ -50,7 +50,6 @@ buildBoard = do
     eb <- GLU.makeBuffer GL.ElementArrayBuffer boardIndices
     vao <- GLU.makeVAO $ do
         GL.currentProgram $= Just (GLU.program s)
-        VGL.setUniforms s (light =: normalize (V3 0 1 0))
         VGL.enableVertices' s vb
         VGL.bindVertices vb
         GL.bindBuffer GL.ElementArrayBuffer $= Just eb
@@ -58,9 +57,6 @@ buildBoard = do
         GL.currentProgram $= Just (GLU.program s)
         VGL.setUniforms s (mvp =: viewProjMatrix)
         GLU.drawIndexedTris 2
-    where
-        light :: SField '("lightDir", V3 GLfloat)
-        light = SField
 
 markerVertices :: [FieldRec '[Pos]]
 markerVertices = map (\p -> pos =: p) positions
@@ -100,18 +96,8 @@ right  = map (\(V2 z y) -> V3 1 y (-z)) square
 top    = map (\(V2 x z) -> V3 x 1 (-z)) square
 bottom = map (\(V2 x z) -> V3 x (-1) z) square
 
-noteVerties :: [FieldRec '[Pos, Normal]]
-noteVerties = fold [
-        map (setNorm z)    front,
-        map (setNorm $ -z) back,
-        map (setNorm $ -x) left,
-        map (setNorm x)    right,
-        map (setNorm y)    top,
-        map (setNorm $ -y) bottom
-    ]
-    where
-        [x,y,z] = basis
-        setNorm v p = (pos =: p <+> normal =: v)
+noteVerties :: [FieldRec '[Pos]]
+noteVerties = map (\p -> pos =: p) $ concat [front, back, left, right, top, bottom]
 
 noteIndices :: [GLU.Word32]
 noteIndices = take 36 $ foldMap (flip map faceInds . (+)) [0,4..]
@@ -125,7 +111,6 @@ buildNote = do
     eb <- GLU.makeBuffer GL.ElementArrayBuffer noteIndices
     vao <- GLU.makeVAO $ do
         GL.currentProgram $= Just (GLU.program s)
-        VGL.setUniforms s (light =: normalize (V3 0 1 0))
         VGL.enableVertices' s vb
         VGL.bindVertices vb
         GL.bindBuffer GL.ElementArrayBuffer $= Just eb
@@ -134,7 +119,5 @@ buildNote = do
         VGL.setUniforms s (mvp =: (viewProjMatrix !*! modelMatrix) <+> colour =: c)
         GLU.drawIndexedTris 12
     where
-        light :: SField '("lightDir", V3 GLfloat)
-        light = SField
         colour :: SField '("colour", V3 GLfloat)
         colour = SField

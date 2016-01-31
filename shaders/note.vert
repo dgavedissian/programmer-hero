@@ -5,9 +5,6 @@ uniform mat4 modelViewProj;
 in vec3 vertexPos;
 in vec3 vertexNormal;
 
-out vec3 pointNormal;
-
 void main() {
-    gl_Position = modelViewProj * vec4(vertexPos,1);
-    pointNormal = vertexNormal;
+    gl_Position = modelViewProj * vec4(vertexPos, 1.0);
 }
