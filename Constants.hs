@@ -1,3 +1,4 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
 module Constants where
 
 import Linear (V3(..))
@@ -6,10 +7,8 @@ import Graphics.Rendering.OpenGL (GLfloat, Color4(..))
 import Music
 
 -- Window Dimensions
-width :: Int
 width = 1024
 
-height :: Int
 height = 768
 
 -- Background Colour
