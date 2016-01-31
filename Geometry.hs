@@ -57,6 +57,33 @@ buildBoard = do
         VGL.setUniforms s (mvp =: viewProjMatrix)
         GLU.drawIndexedTris 2
 
+markerDamageVertices :: [FieldRec '[Pos, Normal, Colour]]
+markerDamageVertices = map (\p -> pos =: p <+> normal =: z <+> col =: (V3 0.8 0.8 0.8)) positions
+    where
+        [_,_,z] = basis
+        positions = map (\(V2 x z) -> V3 (x * C.boardWidth / 2) 0 (z * C.boardActualLength / 2)) square
+
+markerDamageIndices :: [GLU.Word32]
+markerDamageIndices = [0, 1, 2, 2, 1, 3]
+
+buildMarkerDamage :: IO (M44 GLfloat -> M44 GLfloat -> V4 GLfloat -> IO ())
+buildMarkerDamage = do
+    s <- GLU.simpleShaderProgram "shaders/marker-damage.vert" "shaders/marker-damage.frag"
+    vb <- VGL.bufferVertices markerDamageVertices
+    eb <- GLU.makeBuffer GL.ElementArrayBuffer markerDamageIndices
+    vao <- GLU.makeVAO $ do
+        GL.currentProgram $= Just (GLU.program s)
+        VGL.enableVertices' s vb
+        VGL.bindVertices vb
+        GL.bindBuffer GL.ElementArrayBuffer $= Just eb
+    return $ \viewProjMatrix modelMatrix c -> GLU.withVAO vao $ do
+        GL.currentProgram $= Just (GLU.program s)
+        VGL.setUniforms s (mvp =: (viewProjMatrix !*! modelMatrix) <+> colour =: c)
+        GLU.drawIndexedTris 2
+    where
+        colour :: SField '("colour", V4 GLfloat)
+        colour = SField
+
 markerVertices :: [FieldRec '[Pos]]
 markerVertices = map (\p -> pos =: p) positions
     where

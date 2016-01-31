@@ -9,7 +9,7 @@ import qualified Graphics.GLUtil.Camera3D as Camera
 
 import qualified Constants as C
 import           Geometry
-import           Window (initGL, InputState(..), KeyDownEvent)
+import           Window (initGL, InputState(..), KeyEvent)
 import           Music
 import           Code
 
@@ -33,6 +33,7 @@ type PlaybackData = [(Double, FE.T)]
 data Renderables = Renderables {
         renderBoard :: M44 GLfloat -> IO (),
         renderMarker :: M44 GLfloat -> M44 GLfloat -> V3 GLfloat -> IO (),
+        renderMarkerDamage :: M44 GLfloat -> M44 GLfloat -> V4 GLfloat -> IO (),
         renderNote :: M44 GLfloat -> M44 GLfloat -> V3 GLfloat -> IO ()
     }
 
@@ -47,6 +48,10 @@ data GameState = GameState {
         f2Size        :: IORef GLfloat,
         f3Size        :: IORef GLfloat,
         f4Size        :: IORef GLfloat,
+        f1Damage      :: IORef GLfloat,
+        f2Damage      :: IORef GLfloat,
+        f3Damage      :: IORef GLfloat,
+        f4Damage      :: IORef GLfloat,
         renderables   :: Renderables,
         projMatrix    :: M44 GLfloat
     }
@@ -122,7 +127,7 @@ loop [] = return ()
 loop (Indent i : cs) = putStr i >> loop cs
 loop (Token t : cs) = getChar >> putStr t >> loop cs
 
-keyDownEvent :: GameState -> KeyDownEvent
+keyDownEvent :: GameState -> KeyEvent
 keyDownEvent state key
     | key `elem` [Key'F1, Key'F2, Key'F3, Key'F4] = do
         enlargeMarker key
@@ -143,6 +148,9 @@ keyDownEvent state key
         enlargeMarker Key'F3 = writeIORef (f3Size state) C.markerScale
         enlargeMarker Key'F4 = writeIORef (f4Size state) C.markerScale
         enlargeMarker _ = undefined
+
+keyUpEvent :: GameState -> KeyEvent
+keyUpEvent state key = return ()
 
 main :: IO ()
 main = mdo
@@ -165,7 +173,7 @@ main = mdo
     -- Create the window and store the window upate function
     -- state doesn't actually exist at this point, but mdo saves us here so
     -- whatever
-    updateWindow <- initGL "Programmer Hero" C.width C.height (keyDownEvent state)
+    updateWindow <- initGL "Programmer Hero" C.width C.height (keyDownEvent state) (keyUpEvent state)
 
     -- Set up rendering settings
     GL.clearColor $= C.backgroundColour
@@ -174,7 +182,7 @@ main = mdo
     GL.blendFunc $= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
 
     -- Build scene and store entity render functions
-    renderables <- Renderables <$> buildBoard <*> buildMarker <*> buildNote
+    renderables <- Renderables <$> buildBoard <*> buildMarker <*> buildMarkerDamage <*> buildNote
 
     -- Calculate the projection matrix
     let aspect = (fromIntegral C.width) / (fromIntegral C.height)
@@ -189,16 +197,18 @@ main = mdo
     f2Ref <- newIORef 1.0
     f3Ref <- newIORef 1.0
     f4Ref <- newIORef 1.0
+    f1Damage <- newIORef 1.0
+    f2Damage <- newIORef 1.0
+    f3Damage <- newIORef 1.0
+    f4Damage <- newIORef 1.0
     let state = GameState progressRef
                           musicRef
                           playbackRef
                           conn
                           tokRef
                           (getLength music)
-                          f1Ref
-                          f2Ref
-                          f3Ref
-                          f4Ref
+                          f1Ref f2Ref f3Ref f4Ref
+                          f1Damage f2Damage f3Damage f4Damage
                           renderables
                           projMatrix
 

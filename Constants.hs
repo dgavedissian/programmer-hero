@@ -25,6 +25,7 @@ getBeatColours F4 = V3 1 1 0
 -- Board Size
 boardWidth = 16
 boardLength = 80
+boardActualLength = 800
 markerRegion = boardWidth / 4
 markerSize = boardWidth / 5
 markerScale = 1.3

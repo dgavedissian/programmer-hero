@@ -16,19 +16,20 @@ data InputState = InputState {
         shouldQuit     :: Bool
     }
 
-type KeyDownEvent = Key -> IO ()
+type KeyEvent = Key -> IO ()
 
 -- Function called when a key is pressed or released
-keyCallback :: IORef Bool -> KeyDownEvent -> KeyCallback
-keyCallback shouldQuit _ _ Key'Escape _ KeyState'Pressed _ = modifyIORef' shouldQuit (\_ -> True)
-keyCallback _ event _ k _ KeyState'Pressed _ = event k
-keyCallback _ _ _ _ _ _ _ = return ()
+keyCallback :: IORef Bool -> KeyEvent -> KeyEvent -> KeyCallback
+keyCallback shouldQuit _         _          _ Key'Escape _ KeyState'Pressed _ = modifyIORef' shouldQuit (\_ -> True)
+keyCallback _          downEvent _          _ k _ KeyState'Pressed _ = downEvent k
+keyCallback _          _         upEvent    _ k _ KeyState'Released _ = upEvent k
+keyCallback _          _         _          _ _ _ _ _ = return ()
 
 -- Creates a window with the given height and dimensions. Additionally,
 -- a key handler event can be provided which is called when a non-esc key
 -- is pressed
-initGL :: String -> Int -> Int -> KeyDownEvent -> IO (IO InputState)
-initGL windowTitle width height event = do
+initGL :: String -> Int -> Int -> KeyEvent -> KeyEvent -> IO (IO InputState)
+initGL windowTitle width height downEvent upEvent = do
     setErrorCallback (Just simpleErrorCallback)
     r <- init
     when (not r) (error "Error initializing GLFW!")
@@ -50,7 +51,7 @@ initGL windowTitle width height event = do
     shouldQuit <- newIORef False
 
     -- Set up event callbacks
-    setKeyCallback w (Just $ keyCallback shouldQuit event)
+    setKeyCallback w (Just $ keyCallback shouldQuit downEvent upEvent)
 
     -- Return a function which should be used when the window is updated
     return $ do
