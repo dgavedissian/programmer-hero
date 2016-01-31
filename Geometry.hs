@@ -77,8 +77,8 @@ top    = map (\(V2 x z) -> V3 x 1 (-z)) square
 bottom = map (\(V2 x z) -> V3 x (-1) z) square
 
 -- Cube face vertices paired with normal vectors.
-cubeVertices :: [FieldRec [Pos,Normal]]
-cubeVertices = fold [
+noteVerties :: [FieldRec [Pos,Normal]]
+noteVerties = fold [
         map (setNorm z)    front,
         map (setNorm $ -z) back,
         map (setNorm $ -x) left,
@@ -91,19 +91,19 @@ cubeVertices = fold [
         setNorm v p = (pos =: p <+> normal =: v)
 
 -- Indices into the vertex array for each face.
-cubeIndices :: [GLU.Word32]
-cubeIndices = take 36 $ foldMap (flip map faceInds . (+)) [0,4..]
+noteIndices :: [GLU.Word32]
+noteIndices = take 36 $ foldMap (flip map faceInds . (+)) [0,4..]
     where
         faceInds = [0, 1, 2, 2, 1, 3]
 
 -- Builds a cube VAO object, and returns a new function which given a
 -- record which matches the constraint that it has two matrix fields 'cam'
 -- and 'proj', draws that cube object
-buildCube :: (CamInfo <: f) => IO (FieldRec f -> IO ())
-buildCube = do
-    s <- GLU.simpleShaderProgram "shaders/poly.vert" "shaders/poly.frag"
-    vb <- VGL.bufferVertices cubeVertices
-    eb <- GLU.makeBuffer GL.ElementArrayBuffer cubeIndices
+buildNote :: (CamInfo <: f) => IO (FieldRec f -> IO ())
+buildNote = do
+    s <- GLU.simpleShaderProgram "shaders/note.vert" "shaders/note.frag"
+    vb <- VGL.bufferVertices noteVerties
+    eb <- GLU.makeBuffer GL.ElementArrayBuffer noteIndices
     vao <- GLU.makeVAO $ do
         GL.currentProgram $= Just (GLU.program s)
         VGL.setUniforms s (light =: normalize (V3 0 0 1))

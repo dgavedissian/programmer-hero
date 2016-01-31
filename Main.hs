@@ -9,37 +9,43 @@ import qualified Graphics.GLUtil.Camera3D as Camera
 import qualified Graphics.VinylGL as VGL
 import qualified Data.Set as S
 
-import Geometry (buildCube, buildBoard)
+import Geometry (buildBoard, buildNote)
 import Window (initGL, InputState(..))
 
 type Viewport = '("viewport", V2 GLsizei)
 
-type AppInfo = FieldRec [ '("modelViewProj", M44 GLfloat),
-                          Viewport ]
+type RenderContext = FieldRec [ '("modelViewProj", M44 GLfloat), Viewport ]
 
-setup :: IO (AppInfo -> IO ())
-setup = do
+data Renderables = Renderables {
+        renderBoard :: RenderContext -> IO (),
+        renderNote :: RenderContext -> IO ()
+    }
+
+main :: IO ()
+main = do
+    -- Create the window and store the window upate function
+    updateWindow <- initGL "Programmer Hero" 1024 768
+
     -- Set up rendering settings
     GL.clearColor $= GL.Color4 0.1 0.1 0.6 1
     GL.depthFunc $= Just GL.Lequal
     GL.blend $= GL.Enabled
     GL.blendFunc $= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
 
-    -- Build scene
-    renderAll <- (((.) sequence_) . sequence) <$> sequence [buildBoard]
-    return renderAll
+    -- Build scene and store entity render functions
+    renderables <- Renderables <$> buildBoard <*> buildNote
 
-main :: IO ()
-main = do
-    -- Create the window and store the window upate function
-    updateWindow <- initGL "Programmer Hero" 1024 768
-    -- Set up the scene and store the render function
-    render <- setup
     -- Kick off the main loop
-    go camera updateWindow render
+    mainLoop camera updateWindow renderables
     where
-        go :: Camera.Camera GLfloat -> IO InputState -> (AppInfo -> IO ()) -> IO ()
-        go c updateWindow render = do
+        -- Render Function
+        render :: Renderables -> RenderContext -> IO ()
+        render renderables cxt = do
+            renderBoard renderables cxt
+
+        -- Main Loop
+        mainLoop :: Camera.Camera GLfloat -> IO InputState -> Renderables -> IO ()
+        mainLoop c updateWindow renderables = do
             windowState <- updateWindow
 
             -- Clear framebuffer
@@ -51,12 +57,12 @@ main = do
             let viewMatrix = Camera.camMatrix c
 
             -- Draw using render parameters
-            render (SField =: (projMatrix !*! viewMatrix) <+>
-                    SField =: (fromIntegral <$> windowSize windowState))
+            render renderables (SField =: (projMatrix !*! viewMatrix) <+>
+                                SField =: (fromIntegral <$> windowSize windowState))
 
             -- Quit if escaped has been pressed
             if S.member Key'Escape (keysPressed windowState)
             then return () -- terminate
-            else go c updateWindow render
+            else mainLoop c updateWindow renderables
         camera = Camera.tilt (-20) $ Camera.dolly (V3 0 2 8) Camera.fpsCamera
 
