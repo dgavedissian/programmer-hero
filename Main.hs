@@ -1,15 +1,11 @@
 {-# LANGUAGE DataKinds, TypeOperators, RecursiveDo #-}
 import           Control.Monad
-import           Data.Vinyl
 import           Data.IORef
 import           Graphics.UI.GLFW
 import           Linear
 import qualified Graphics.Rendering.OpenGL as GL
-import           Graphics.Rendering.OpenGL (($=), GLfloat, GLint, GLsizei)
-import qualified Graphics.GLUtil as GLU
+import           Graphics.Rendering.OpenGL (($=), GLfloat)
 import qualified Graphics.GLUtil.Camera3D as Camera
-import qualified Graphics.VinylGL as VGL
-import qualified Data.Set as S
 
 import qualified Constants as C
 import           Geometry
@@ -124,7 +120,7 @@ main = mdo
 
             -- Render the markers for each colour
             forM_ [F1, F2, F3, F4] $ \note -> do
-                let x = (xoffset note) * 4
+                let x = xoffset note * 4
                     -- board half size is 40, marker half size is 2
                     modelMatrix = translate x 0 38
                 renderMarker (renderables state) viewProjMatrix modelMatrix (C.getBeatColours note)
@@ -137,8 +133,8 @@ main = mdo
             currentMusic <- readIORef (music state)
             forM_ currentMusic $ \(Note (time, note)) -> do
                 elapsed <- realToFrac <$> readIORef (progress state)
-                let x = (xoffset note) * 4
-                    modelMatrix = translate x 0 ((elapsed - (realToFrac time)) * 16 + 40)
+                let x = xoffset note * 4
+                    modelMatrix = translate x 0 ((elapsed - realToFrac time) * 16 + 40)
                 renderNote (renderables state) viewProjMatrix modelMatrix (C.getBeatColours note)
 
         -- Main Loop
@@ -158,7 +154,7 @@ main = mdo
             let viewMatrix = Camera.camMatrix c
 
             -- Draw using render parameters
-            render state ((projMatrix state) !*! viewMatrix)
+            render state (projMatrix state !*! viewMatrix)
 
             -- Check win condition
             remMusic <- readIORef . music $ state
