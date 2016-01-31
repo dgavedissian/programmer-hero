@@ -207,7 +207,7 @@ main = mdo
             f3CurSize <- readIORef (f3Size state)
             f4CurSize <- readIORef (f4Size state)
             forM_ [F1, F2, F3, F4] $ \note -> do
-                let x = xoffset note * C.noteSpeed
+                let x = xoffset note * C.markerRegion
                     scale F1 = f1CurSize
                     scale F2 = f2CurSize
                     scale F3 = f3CurSize
@@ -226,7 +226,7 @@ main = mdo
                 elapsed <- realToFrac <$> readIORef (progress state)
                 let x = xoffset note * C.noteSpeed
                     distance = (elapsed - (realToFrac time)) * C.markerSize / C.timeToCatch
-                    modelMatrix = translateMatrix x 0 (distance + C.boardLength / 2)
+                    modelMatrix = translateMatrix x 0 (distance + C.boardLength / 2 - C.markerRegion / 2)
                 renderNote (renderables state) viewProjMatrix modelMatrix (C.getBeatColours note)
 
         -- Main Loop
