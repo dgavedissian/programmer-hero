@@ -127,7 +127,7 @@ main = mdo
                 let x = (xoffset note) * 4
                     -- board half size is 40, marker half size is 2
                     modelMatrix = translate x 0 38
-                renderMarker (renderables state) viewProjMatrix modelMatrix (C.getBeatColour note)
+                renderMarker (renderables state) viewProjMatrix modelMatrix (C.getBeatColours note)
 
             -- Drop notes which have already been played
             elapsed <- realToFrac <$> readIORef (progress state)
@@ -139,7 +139,7 @@ main = mdo
                 elapsed <- realToFrac <$> readIORef (progress state)
                 let x = (xoffset note) * 4
                     modelMatrix = translate x 0 ((elapsed - (realToFrac time)) * 16 + 40)
-                renderNote (renderables state) viewProjMatrix modelMatrix (C.getBeatColour note)
+                renderNote (renderables state) viewProjMatrix modelMatrix (C.getBeatColours note)
 
         -- Main Loop
         mainLoop :: Camera.Camera GLfloat -> IO InputState -> GameState -> IO ()
