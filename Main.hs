@@ -127,6 +127,21 @@ loop [] = return ()
 loop (Indent i : cs) = putStr i >> loop cs
 loop (Token t : cs) = getChar >> putStr t >> loop cs
 
+-- Missed note
+missedNote :: GameState -> Beat -> IO ()
+missedNote state F1 = writeIORef (f1Damage state) 1
+missedNote state F2 = writeIORef (f2Damage state) 1
+missedNote state F3 = writeIORef (f3Damage state) 1
+missedNote state F4 = writeIORef (f4Damage state) 1
+
+dropExpiredWhile :: GameState -> (Note -> Bool) -> [Note] -> IO ([Note])
+dropExpiredWhile state pred all@(n@(Note (_, b)):ns) =
+        if pred n then do
+            missedNote state b
+            dropExpiredWhile state pred ns
+        else
+            return all
+
 keyDownEvent :: GameState -> KeyEvent
 keyDownEvent state key
     | key `elem` [Key'F1, Key'F2, Key'F3, Key'F4] = do
@@ -230,29 +245,54 @@ main = mdo
                 xoffset F3 = 0.5
                 xoffset F4 = 1.5
                 scaleDown x = (x - 1.0) * 0.9 + 1.0
+                fadeOut x = max (x - 0.05) 0
 
-            -- Render the markers for each colour
+            -- Update animations
             modifyIORef' (f1Size state) scaleDown
             modifyIORef' (f2Size state) scaleDown
             modifyIORef' (f3Size state) scaleDown
             modifyIORef' (f4Size state) scaleDown
+            modifyIORef' (f1Damage state) fadeOut
+            modifyIORef' (f2Damage state) fadeOut
+            modifyIORef' (f3Damage state) fadeOut
+            modifyIORef' (f4Damage state) fadeOut
             f1CurSize <- readIORef (f1Size state)
             f2CurSize <- readIORef (f2Size state)
             f3CurSize <- readIORef (f3Size state)
             f4CurSize <- readIORef (f4Size state)
-            forM_ [F1, F2, F3, F4] $ \note -> do
-                let x = xoffset note * C.markerRegion
-                    scale F1 = f1CurSize
+            f1DamageAlpha <- readIORef (f1Damage state)
+            f2DamageAlpha <- readIORef (f2Damage state)
+            f3DamageAlpha <- readIORef (f3Damage state)
+            f4DamageAlpha <- readIORef (f4Damage state)
+            
+            -- Render the markers for each colour
+            forM_ [F1, F2, F3, F4] $ \beat -> do
+                let x = xoffset beat * C.markerRegion
+                
+                -- Render Marker Damage
+                let v3tov4 (V3 r g b) a = V4 r g b a
+                    damageAlpha F1 = f1DamageAlpha
+                    damageAlpha F2 = f2DamageAlpha
+                    damageAlpha F3 = f3DamageAlpha
+                    damageAlpha F4 = f4DamageAlpha
+                    damageColour = v3tov4 (C.getBeatColours beat) ((damageAlpha beat) * 0.5)
+                    damageMatrix = translateMatrix x 0.01 0
+                renderMarkerDamage (renderables state) viewProjMatrix damageMatrix damageColour
+                
+                -- Render Marker
+                let scale F1 = f1CurSize
                     scale F2 = f2CurSize
                     scale F3 = f3CurSize
                     scale F4 = f4CurSize
-                    scaleSize = scale note
+                    scaleSize = scale beat
                     modelMatrix = (translateMatrix x 0.01 ((C.boardLength / 2) - (C.markerSize / 2))) !*! (scaleMatrix scaleSize scaleSize scaleSize)
-                renderMarker (renderables state) viewProjMatrix modelMatrix (C.getBeatColours note)
+                renderMarker (renderables state) viewProjMatrix modelMatrix (C.getBeatColours beat)
 
             -- Drop notes which have already been played
             elapsed <- realToFrac <$> readIORef (progress state)
-            modifyIORef' (music state) (dropWhile (\(Note (t, _)) -> elapsed >= t))
+            currentMusic <- readIORef $ music state
+            filteredMusic <- dropExpiredWhile state (\(Note (t, _)) -> elapsed >= t) currentMusic
+            writeIORef (music state) filteredMusic
 
             -- Render a note for each note in the song
             currentMusic <- readIORef (music state)

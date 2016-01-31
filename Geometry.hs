@@ -33,20 +33,19 @@ square = V2 <$> [-1,1] <*> [1,-1]
 -- Board
 ------------------------
 
-boardVertices :: [FieldRec '[Pos, Normal, Colour]]
-boardVertices = map (\p -> pos =: p <+> normal =: z <+> col =: (V3 0.8 0.8 0.8)) positions
-    where
-        [_,_,z] = basis
-        positions = map (\(V2 x z) -> V3 (x * (C.boardWidth / 2)) 0 (z * C.boardLength)) square
+quadIndices :: [GLU.Word32]
+quadIndices = [0, 1, 2, 2, 1, 3]
 
-boardIndices :: [GLU.Word32]
-boardIndices = [0, 1, 2, 2, 1, 3]
+boardVertices :: [FieldRec '[Pos]]
+boardVertices = map (\p -> pos =: p) positions
+    where
+        positions = map (\(V2 x z) -> V3 (x * (C.boardWidth / 2)) 0 (z * C.boardLength)) square
 
 buildBoard :: IO (M44 GLfloat -> IO ())
 buildBoard = do
     s <- GLU.simpleShaderProgram "shaders/board.vert" "shaders/board.frag"
     vb <- VGL.bufferVertices boardVertices
-    eb <- GLU.makeBuffer GL.ElementArrayBuffer boardIndices
+    eb <- GLU.makeBuffer GL.ElementArrayBuffer quadIndices
     vao <- GLU.makeVAO $ do
         GL.currentProgram $= Just (GLU.program s)
         VGL.enableVertices' s vb
@@ -57,20 +56,16 @@ buildBoard = do
         VGL.setUniforms s (mvp =: viewProjMatrix)
         GLU.drawIndexedTris 2
 
-markerDamageVertices :: [FieldRec '[Pos, Normal, Colour]]
-markerDamageVertices = map (\p -> pos =: p <+> normal =: z <+> col =: (V3 0.8 0.8 0.8)) positions
+markerDamageVertices :: [FieldRec '[Pos]]
+markerDamageVertices = map (\p -> pos =: p) positions
     where
-        [_,_,z] = basis
-        positions = map (\(V2 x z) -> V3 (x * C.boardWidth / 2) 0 (z * C.boardActualLength / 2)) square
-
-markerDamageIndices :: [GLU.Word32]
-markerDamageIndices = [0, 1, 2, 2, 1, 3]
+        positions = map (\(V2 x z) -> V3 (x * (C.boardWidth / 8)) 0 (z * C.boardLength)) square
 
 buildMarkerDamage :: IO (M44 GLfloat -> M44 GLfloat -> V4 GLfloat -> IO ())
 buildMarkerDamage = do
     s <- GLU.simpleShaderProgram "shaders/marker-damage.vert" "shaders/marker-damage.frag"
     vb <- VGL.bufferVertices markerDamageVertices
-    eb <- GLU.makeBuffer GL.ElementArrayBuffer markerDamageIndices
+    eb <- GLU.makeBuffer GL.ElementArrayBuffer quadIndices
     vao <- GLU.makeVAO $ do
         GL.currentProgram $= Just (GLU.program s)
         VGL.enableVertices' s vb
